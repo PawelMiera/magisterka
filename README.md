@@ -96,12 +96,11 @@ Use rviz to display all sensor data (the configuration file is named default.rvi
 rviz
 ```
 
-The most important files are:
-magisterka.launch
-CMakeLists.txt
-/models directory (you can change sensor settings in sdf files)
-cave_world.world
-
+The most important files are:  
+magisterka.launch  
+CMakeLists.txt  
+cave_world.world  
+models directory (you can change sensor settings in sdf files)  
 
 If you want to use another map you need to add drone model to your world file:
 
