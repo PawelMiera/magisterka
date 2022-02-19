@@ -1,6 +1,6 @@
 # magisterka
 
-#### Quick tutorial to install and run ROS, Gazebo, PX4 on custom map with custom hardware (depth camera, Lidar and Light)
+#### Quick tutorial to install and run ROS, Gazebo, PX4 on custom map with custom hardware (Depth camera, Lidar and Light)
 
 First install everything with one script from this tutorial (Ubuntu 18.04 is required):  
 https://docs.px4.io/master/en/dev_setup/dev_env_linux_ubuntu.html#ros-gazebo
@@ -14,13 +14,13 @@ cd PX4-Autopilot
 no_sim=1 make px4_sitl_default gazebo
 ```
 
-Set Up Catkin workspace, all the projects are located here.
+Install catkin (ros builds packages with this tool) dependencies:
 
 ```
 sudo apt-get install python-wstool python-rosinstall-generator python-catkin-tools
 ```
 
-Then, initialize the catkin workspace:
+Then, initialize the catkin workspace, all the projects are located here:
 ```
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws
@@ -73,7 +73,7 @@ ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:/home/pawel/PX4-Autopilot:/home/pawel/PX4-Aut
 ```
 ctrl + s 
 ctrl + x
-sudo nano ~/.bashrc
+source ~/.bashrc
 ```
 
 Now clone this repository into catkin workspace:
