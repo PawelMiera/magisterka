@@ -1,9 +1,10 @@
-# magisterka
-
-#### Quick tutorial to install and run ROS, Gazebo, PX4 on custom map with custom hardware (Depth camera, Lidar and Light)
+#### Quick tutorial to install and run ROS, Gazebo, PX4 on custom map with custom hardware (Depth camera, Lidar, Optical FLow, Height lidar and Light)
 
 First install everything with one script from this tutorial (Ubuntu 18.04 is required):  
 https://docs.px4.io/master/en/dev_setup/dev_env_linux_ubuntu.html#ros-gazebo
+
+For Ubuntu 20.04 here is nice tutorial:  
+https://www.youtube.com/watch?v=1FpJvUVPxL0
 
 Next you need to download and build PX4:
 
@@ -79,7 +80,7 @@ source ~/.bashrc
 Now clone this repository into catkin workspace:
 ```
 cd ~/catkin_ws/src
-git clone https://github.com/PawelMiera/magisterka
+git clone https://github.com/PawelMiera/magisterka.git
 ```
 And build it:
 ```
@@ -111,7 +112,7 @@ If you want to use another map you need to add drone model to your world file:
   <include>
     <uri>model://iris</uri> 
   </include>
-
+  
   <include>
     <uri>model://agh_depth_camera</uri>
     <pose>0.1 0 0 0 0 0</pose>
@@ -122,16 +123,54 @@ If you want to use another map you need to add drone model to your world file:
     <pose>0.1 0 0 0 0 0</pose>
   </include>
 
+  <include>
+    <uri>model://agh_height_lidar</uri>
+    <pose>0 0 -0.05 0 0 0</pose>
+  </include>
+
+  <include>
+    <uri>model://agh_opflow</uri>
+    <pose>0.05 0 -0.05 0 0 0</pose>
+  </include>
+
+  <include>
+    <uri>model://agh_light</uri>
+    <pose>0 0 0 0 0 0</pose>
+  </include>
+
   <joint name="depth_camera_joint" type="fixed">
     <child>agh_depth_camera::link</child>
     <parent>iris::base_link</parent>
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
-
+ 
   <joint name="hokuyo_joint" type="fixed">
     <pose>0 0 0 0 0 0</pose>
     <parent>iris::base_link</parent>
     <child>agh_lidar::link</child>
+  </joint>
+
+  <joint name="opflow_joint" type="revolute">
+    <parent>iris::base_link</parent>
+    <child>agh_opflow::link</child>
+    <axis>
+      <xyz>0 0 1</xyz>
+      <limit>
+        <upper>0</upper>
+        <lower>0</lower>
+      </limit>
+    </axis>
+  </joint>
+
+  <joint name="lidar_joint" type="fixed">
+    <parent>iris::base_link</parent>
+    <child>agh_height_lidar::link</child>
+  </joint>
+
+  <joint name="light_joint" type="fixed">
+    <child>agh_light::link</child>
+    <parent>iris::base_link</parent>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
 </model>
