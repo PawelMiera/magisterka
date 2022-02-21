@@ -1,0 +1,36 @@
+<?xml version="1.0" ?>
+<sdf version="1.0">
+  <model name="agh_light">
+      <link name='link'>
+        <pose>0 0 0 0 0 0</pose>
+
+        <inertial>
+          <mass>0.00001</mass>
+          <inertia>
+            <ixx>4.166666666666667e-33</ixx>
+            <iyy>5.208333333333334e-33</iyy>
+            <izz>3.854166666666666e-33</izz>
+          </inertia>
+        </inertial>
+
+
+        <light name='light_source' type='spot'>
+          <pose frame=''>0 0 0 0 -1.57 0</pose>
+
+          <attenuation>
+            <range>30</range>
+            <linear>0.05</linear>
+          </attenuation>
+          <!--<diffuse>1 0 0 1</diffuse>-->
+          <specular>1 0 0 1</specular>
+
+          <spot>
+            <inner_angle>0</inner_angle>
+            <outer_angle>1.2</outer_angle>
+            <falloff>1</falloff>
+          </spot>
+
+        </light>
+      </link>
+  </model>
+</sdf>
