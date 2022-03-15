@@ -31,6 +31,11 @@ catkin init
 Install dependencies (mavros, mavlink):
 
 ```
+sudo apt-get install ros-melodic-mavros ros-melodic-mavros-extras
+
+
+OR harder way:
+
 cd ~/catkin_ws
 wstool init ~/catkin_ws/src
 
@@ -43,6 +48,7 @@ rosdep install --from-paths src --ignore-src --rosdistro `echo $ROS_DISTRO` -y
 catkin build
 
 echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+
 ```
 
 Update global variables
@@ -52,7 +58,8 @@ source ~/.bashrc
 
 Install geographiclib dependancy 
 ```
-sudo ~/catkin_ws/src/mavros/mavros/scripts/install_geographiclib_datasets.sh
+wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/install_geographiclib_datasets.sh
+sudo bash ./install_geographiclib_datasets.sh
 ```
 
 Now for everything to work fine you need te setup your .bashrc for ROS to see all needed packages.

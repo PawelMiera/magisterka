@@ -39,12 +39,10 @@
 # dependencies such as pymavlink don't play well with Python3 yet.
 from __future__ import division
 
-PKG = 'px4'
-
 import rospy
 import math
 import numpy as np
-from geometry_msgs.msg import PoseStamped, Quaternion
+from geometry_msgs.msg import PoseStamped, Quaternion, TwistStamped
 from mavros_msgs.msg import ParamValue
 from mavros_test_common import MavrosTestCommon
 from pymavlink import mavutil
@@ -53,6 +51,10 @@ from std_msgs.msg import Header
 from threading import Thread
 from tf.transformations import quaternion_from_euler
 
+
+class Modes:
+    POSITION_CONTROL = 0
+    VELOCITY_CONTROL = 1
 
 
 class MavrosOffboardPosctlTest(MavrosTestCommon):
@@ -69,15 +71,21 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
         super(MavrosOffboardPosctlTest, self).setUp()
 
         self.pos = PoseStamped()
-        self.radius = 1
+
+        self.vel = TwistStamped()
+
+        self.mode = Modes.POSITION_CONTROL
 
         self.pos_setpoint_pub = rospy.Publisher(
             'mavros/setpoint_position/local', PoseStamped, queue_size=1)
 
+        self.vel_setpoint_pub = rospy.Publisher(
+            '/mavros/setpoint_velocity/cmd_vel', TwistStamped, queue_size=1)
+
         # send setpoints in seperate thread to better prevent failsafe
-        self.pos_thread = Thread(target=self.send_pos, args=())
-        self.pos_thread.daemon = True
-        self.pos_thread.start()
+        self.drone_control_thread = Thread(target=self.control_drone, args=())
+        self.drone_control_thread.daemon = True
+        self.drone_control_thread.start()
 
     def tearDown(self):
         super(MavrosOffboardPosctlTest, self).tearDown()
@@ -85,14 +93,21 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
     #
     # Helper methods
     #
-    def send_pos(self):
+    def control_drone(self):
         rate = rospy.Rate(10)  # Hz
         self.pos.header = Header()
         self.pos.header.frame_id = "base_footprint"
 
+        self.vel.header = Header()
+        self.vel.header.frame_id = "base_footprint"
+
         while not rospy.is_shutdown():
-            self.pos.header.stamp = rospy.Time.now()
-            self.pos_setpoint_pub.publish(self.pos)
+            if self.mode == Modes.POSITION_CONTROL:
+                self.pos.header.stamp = rospy.Time.now()
+                self.pos_setpoint_pub.publish(self.pos)
+            elif self.mode == Modes.VELOCITY_CONTROL:
+                self.vel.header.stamp = rospy.Time.now()
+                self.vel_setpoint_pub.publish(self.vel)
             try:  # prevent garbage in console output when thread is killed
                 rate.sleep()
             except rospy.ROSInterruptException:
@@ -124,7 +139,7 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
                    self.local_position.pose.position.z))
 
         # For demo purposes we will lock yaw/heading to north.
-        yaw_degrees = 0  # North
+        yaw_degrees = 180  # North
         yaw = math.radians(yaw_degrees)
         quaternion = quaternion_from_euler(0, 0, yaw)
         self.pos.pose.orientation = Quaternion(*quaternion)
@@ -136,7 +151,7 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
         for i in xrange(timeout * loop_freq):
             if self.is_at_position(self.pos.pose.position.x,
                                    self.pos.pose.position.y,
-                                   self.pos.pose.position.z, self.radius):
+                                   self.pos.pose.position.z, 0.5):
                 rospy.loginfo("position reached | seconds: {0} of {1}".format(
                     i / loop_freq, timeout))
                 reached = True
@@ -153,9 +168,53 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
                    self.local_position.pose.position.y,
                    self.local_position.pose.position.z, timeout)))
 
-    #
-    # Test method
-    #
+
+    def take_off(self, z, azimuth, timeout, max_error):
+        self.set_position(0, 0, z, azimuth, timeout, max_error)
+
+    def set_velocity(self, v_x, v_y, v_z, v_yaw):
+        self.mode = Modes.VELOCITY_CONTROL
+
+        self.vel.twist.linear.x = v_x
+        self.vel.twist.linear.y = v_y
+        self.vel.twist.linear.z = v_z
+
+        self.vel.twist.angular.z = v_yaw
+
+    def set_position(self, x, y, z, azimuth, timeout, max_error):
+        self.mode = Modes.POSITION_CONTROL
+        self.pos.pose.position.x = x
+        self.pos.pose.position.y = y
+        self.pos.pose.position.z = z
+
+        yaw = math.radians(azimuth)
+        quaternion = quaternion_from_euler(0, 0, yaw)
+        self.pos.pose.orientation = Quaternion(*quaternion)
+
+        loop_freq = 2  # Hz
+        rate = rospy.Rate(loop_freq)
+        reached = False
+        for i in xrange(timeout * loop_freq):
+            if self.is_at_position(self.pos.pose.position.x,
+                                   self.pos.pose.position.y,
+                                   self.pos.pose.position.z, max_error):
+                rospy.loginfo("position reached | seconds: {0} of {1}".format(
+                    i / loop_freq, timeout))
+                reached = True
+                break
+
+            try:
+                rate.sleep()
+            except rospy.ROSException as e:
+                self.fail(e)
+
+        self.assertTrue(reached, (
+            "took too long to get to position | current position x: {0:.2f}, y: {1:.2f}, z: {2:.2f} | timeout(seconds): {3}".
+            format(self.local_position.pose.position.x,
+                   self.local_position.pose.position.y,
+                   self.local_position.pose.position.z, timeout)))
+        return reached
+
     def test_posctl(self):
         """Test offboard position control"""
 
@@ -163,7 +222,6 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
         self.wait_for_topics(60)
         self.wait_for_landed_state(mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND,
                                    10, -1)
-
         self.log_topic_vars()
         # exempting failsafe from lost RC to allow offboard
         rcl_except = ParamValue(1<<2, 0.0)
@@ -172,12 +230,21 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
         self.set_arm(True, 5)
 
         rospy.loginfo("run mission")
-        positions = ((0, 0, 0), (50, 50, 20), (50, -50, 20), (-50, -50, 20),
-                     (0, 0, 20))
+        positions = ((0, 0, 2), (2, 2, 5), (0, 0, 5))
 
-        for i in xrange(len(positions)):
-            self.reach_position(positions[i][0], positions[i][1],
-                                positions[i][2], 30)
+        #for i in xrange(len(positions)):
+        #    self.reach_position(positions[i][0], positions[i][1],
+        #                        positions[i][2], 30)
+
+        self.take_off(4, 180, 20, 0.5)
+
+        self.tearDown()
+
+        self.set_velocity(0, 0.3, 1, 1)
+
+        rospy.sleep(5)
+
+        self.set_position(0, 0, 5, 180, 20, 0.5)
 
         self.set_mode("AUTO.LAND", 5)
         self.wait_for_landed_state(mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND,
