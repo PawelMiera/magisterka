@@ -1,55 +1,17 @@
-#!/usr/bin/env python2
-#***************************************************************************
-#
-#   Copyright (c) 2015 PX4 Development Team. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in
-#    the documentation and/or other materials provided with the
-#    distribution.
-# 3. Neither the name PX4 nor the names of its contributors may be
-#    used to endorse or promote products derived from this software
-#    without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-#***************************************************************************/
-
-#
-# @author Andreas Antener <andreas@uaventure.com>
-#
-# The shebang of this file is currently Python2 because some
-# dependencies such as pymavlink don't play well with Python3 yet.
 from __future__ import division
 
 import rospy
 import math
 import numpy as np
 from geometry_msgs.msg import PoseStamped, Quaternion, TwistStamped
-from mavros_msgs.msg import ParamValue
+from mavros_msgs.msg import ParamValue, PositionTarget
 from mavros_test_common import MavrosTestCommon
 from pymavlink import mavutil
 from six.moves import xrange
 from std_msgs.msg import Header
 from threading import Thread
 from tf.transformations import quaternion_from_euler
+from pynput import keyboard
 
 
 class Modes:
@@ -72,20 +34,30 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
 
         self.pos = PoseStamped()
 
-        self.vel = TwistStamped()
+        self.vel_global = TwistStamped()
 
         self.mode = Modes.POSITION_CONTROL
 
-        self.pos_setpoint_pub = rospy.Publisher(
-            'mavros/setpoint_position/local', PoseStamped, queue_size=1)
+        self.vel_local = PositionTarget()
 
-        self.vel_setpoint_pub = rospy.Publisher(
-            '/mavros/setpoint_velocity/cmd_vel', TwistStamped, queue_size=1)
+        self.vel_local.type_mask = PositionTarget.IGNORE_YAW
+
+        self.pos_setpoint_pub = rospy.Publisher(
+            '/mavros/setpoint_position/local', PoseStamped, queue_size=1)
+
+        self.vel_local_pub = rospy.Publisher(
+            '/mavros/setpoint_raw/local', PositionTarget, queue_size=1)             # prawdopodobnie da sie wszystkim sterowac
 
         # send setpoints in seperate thread to better prevent failsafe
         self.drone_control_thread = Thread(target=self.control_drone, args=())
         self.drone_control_thread.daemon = True
         self.drone_control_thread.start()
+
+        self.v_x = 0
+        self.v_y = 0
+        self.v_z = 0
+        self.v_yaw = 0
+        self.speed = 0.5
 
     def tearDown(self):
         super(MavrosOffboardPosctlTest, self).tearDown()
@@ -98,16 +70,21 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
         self.pos.header = Header()
         self.pos.header.frame_id = "base_footprint"
 
-        self.vel.header = Header()
-        self.vel.header.frame_id = "base_footprint"
+        self.vel_local.header = Header()
+        self.vel_local.header.frame_id = "base_footprint"
+
+        self.vel_global.header = Header()
+        self.vel_global.header.frame_id = "base_footprint"
 
         while not rospy.is_shutdown():
             if self.mode == Modes.POSITION_CONTROL:
                 self.pos.header.stamp = rospy.Time.now()
                 self.pos_setpoint_pub.publish(self.pos)
             elif self.mode == Modes.VELOCITY_CONTROL:
-                self.vel.header.stamp = rospy.Time.now()
-                self.vel_setpoint_pub.publish(self.vel)
+                self.vel_local.header.stamp = rospy.Time.now()
+                self.vel_local_pub.publish(self.vel_local)
+
+
             try:  # prevent garbage in console output when thread is killed
                 rate.sleep()
             except rospy.ROSInterruptException:
@@ -168,18 +145,19 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
                    self.local_position.pose.position.y,
                    self.local_position.pose.position.z, timeout)))
 
-
     def take_off(self, z, azimuth, timeout, max_error):
         self.set_position(0, 0, z, azimuth, timeout, max_error)
 
     def set_velocity(self, v_x, v_y, v_z, v_yaw):
         self.mode = Modes.VELOCITY_CONTROL
 
-        self.vel.twist.linear.x = v_x
-        self.vel.twist.linear.y = v_y
-        self.vel.twist.linear.z = v_z
+        self.vel_local.velocity.x = v_x
+        self.vel_local.velocity.y = v_y
+        self.vel_local.velocity.z = v_z
 
-        self.vel.twist.angular.z = v_yaw
+        self.vel_local.coordinate_frame = PositionTarget.FRAME_BODY_NED
+        self.vel_local.yaw_rate = v_yaw
+
 
     def set_position(self, x, y, z, azimuth, timeout, max_error):
         self.mode = Modes.POSITION_CONTROL
@@ -215,6 +193,84 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
                    self.local_position.pose.position.z, timeout)))
         return reached
 
+    def on_press(self, key):
+        try:
+            if self.state.armed:
+                if key.char == 'w':
+                    self.v_x = self.speed
+                elif key.char == 's':
+                    self.v_x = -self.speed
+
+                if key.char == 'a':
+                    self.v_y = self.speed
+                elif key.char == 'd':
+                    self.v_y = -self.speed
+
+                if key.char == 'z':
+                    self.v_z = self.speed
+                elif key.char == 'x':
+                    self.v_z = - self.speed
+
+                if key.char == 'q':
+                    self.v_yaw = self.speed
+                elif key.char == 'e':
+                    self.v_yaw = - self.speed
+
+                self.set_velocity(self.v_x, self.v_y, self.v_z, self.v_yaw)
+        except AttributeError:
+            pass
+
+    def on_release(self, key):
+        try:
+            if key == keyboard.Key.esc:
+                return False
+            elif key.char == 'm':
+                self.increase_speed()
+            elif key.char == 'm':
+                self.decrease_speed()
+            elif key.char == '1':
+                self.set_arm(True, 5)
+            elif key.char == '2':
+                self.set_arm(False, 5)
+
+            if self.state.armed:
+                if key.char == 't':
+                    self.take_off(1.5, 180, 20, 0.5)
+                elif key.char == 'r':
+                    self.rtl()
+                elif key.char == 'l':
+                    self.land()
+                elif key.char == 'w' or key.char == 's':
+                    self.v_x = 0
+                elif key.char == 'a' or key.char == 'd':
+                    self.v_y = 0
+                elif key.char == 'z' or key.char == 'x':
+                    self.v_z = 0
+                elif key.char == 'q' or key.char == 'e':
+                    self.v_yaw = 0
+
+                self.set_velocity(self.v_x, self.v_y, self.v_z, self.v_yaw)
+            #rospy.loginfo(str(self.v_x) + " " + str(self.v_y) + " " + str(self.v_z) + " " + str(self.v_yaw) + " " + str(
+            #    self.speed))
+
+        except AttributeError:
+            pass
+
+
+    def land(self):
+        self.set_mode("AUTO.LAND", 5)
+
+    def rtl(self):
+        self.set_mode("AUTO.RTL", 5)
+
+    def increase_speed(self):
+        self.speed += 0.2
+
+    def decrease_speed(self):
+        if self.speed > 0.2:
+            self.speed -= 0.2
+
+
     def test_posctl(self):
         """Test offboard position control"""
 
@@ -227,7 +283,7 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
         rcl_except = ParamValue(1<<2, 0.0)
         self.set_param("COM_RCL_EXCEPT", rcl_except, 5)
         self.set_mode("OFFBOARD", 5)
-        self.set_arm(True, 5)
+        #self.set_arm(True, 5)
 
         rospy.loginfo("run mission")
         positions = ((0, 0, 2), (2, 2, 5), (0, 0, 5))
@@ -236,20 +292,24 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
         #    self.reach_position(positions[i][0], positions[i][1],
         #                        positions[i][2], 30)
 
-        self.take_off(4, 180, 20, 0.5)
+        #self.take_off(4, 180, 20, 0.5)
 
-        self.tearDown()
+        #self.tearDown()
 
-        self.set_velocity(0, 0.3, 1, 1)
+        #self.set_velocity(0, 0.3, 1, 1)
 
-        rospy.sleep(5)
+        #rospy.sleep(5)
 
-        self.set_position(0, 0, 5, 180, 20, 0.5)
+        #self.set_position(0, 0, 5, 180, 20, 0.5)
 
-        self.set_mode("AUTO.LAND", 5)
-        self.wait_for_landed_state(mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND,
-                                   45, 0)
-        self.set_arm(False, 5)
+        #self.set_mode("AUTO.LAND", 5)
+        #self.wait_for_landed_state(mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND, 45, 0)
+        #self.set_arm
+
+        with keyboard.Listener(
+                on_press=self.on_press,
+                on_release=self.on_release) as listener:
+            listener.join()
 
 
 if __name__ == '__main__':
