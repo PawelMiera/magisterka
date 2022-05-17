@@ -146,7 +146,7 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
                    self.local_position.pose.position.z, timeout)))
 
     def take_off(self, z, azimuth, timeout, max_error):
-        self.set_position(0, 0, z, azimuth, timeout, max_error)
+        self.set_position(self.local_position.pose.position.x, self.local_position.pose.position.y, z, azimuth, timeout, max_error)
 
     def set_velocity(self, v_x, v_y, v_z, v_yaw):
         self.mode = Modes.VELOCITY_CONTROL
@@ -236,7 +236,7 @@ class MavrosOffboardPosctlTest(MavrosTestCommon):
             if self.state.armed:
                 if key.char == 't':
                     self.take_off(1.5, 180, 20, 0.5)
-                elif key.char == 'r':
+                elif key.char == 'p':
                     self.rtl()
                 elif key.char == 'l':
                     self.land()

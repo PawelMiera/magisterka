@@ -48,6 +48,7 @@
 
    <node pkg="tf" type="static_transform_publisher" name="base_to_kinect" args="0.13 0 0 -1.570796 0 -1.570796 map depth_camera_frame 50" />
 
+  <node pkg="tf" type="static_transform_publisher" name="laser" args="0 0 0 0 0 0 map laser_frame 50" />
 
     <!-- MAVROS -->
     <include file="$(find mavros)/launch/px4.launch">

@@ -2,23 +2,62 @@
 <sdf version="1.0">
   <model name="agh_iris">
     <include>
-      <uri>model://iris</uri> 
+      <uri>model://iris</uri>
     </include>
-    
+
+
+    <include>
+      <uri>model://agh_light</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include> 
+
+
+    <joint name="light_joint" type="fixed">
+      <child>agh_light::link</child>
+      <parent>iris::base_link</parent>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
     <include>
       <uri>model://agh_depth_camera</uri>
       <pose>0.1 0 0 0 0 0</pose>
     </include>
+
+    <joint name="depth_camera_joint" type="revolute">
+      <child>agh_depth_camera::link</child>
+      <parent>iris::base_link</parent>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <upper>0</upper>
+          <lower>0</lower>
+        </limit>
+      </axis>
+    </joint>
+
 
     <include>
       <uri>model://agh_lidar</uri>
       <pose>0.1 0 0 0 0 0</pose>
     </include>
 
+
+    <joint name="hokuyo_joint" type="fixed">
+      <pose>0 0 0 0 0 0</pose>
+      <parent>iris::base_link</parent>
+      <child>agh_lidar::link</child>
+    </joint>
+
+    <!--
     <include>
       <uri>model://agh_height_lidar</uri>
       <pose>0 0 -0.05 0 0 0</pose>
     </include>
+
+        <joint name="lidar_joint" type="fixed">
+      <parent>iris::base_link</parent>
+      <child>agh_height_lidar::link</child>
+    </joint> 
 
     <include>
       <uri>model://agh_opflow</uri>
@@ -28,15 +67,15 @@
     <include>
       <uri>model://agh_light</uri>
       <pose>0 0 0 0 0 0</pose>
-    </include>
+    </include> 
 
     <joint name="depth_camera_joint" type="fixed">
-      <child>agh_depth_camera::link</child>
+      <child>agh_depth_camera_2::link</child>
       <parent>iris::base_link</parent>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-    </joint>
+    </joint>-->
    
-    <joint name="hokuyo_joint" type="fixed">
+    <!--<joint name="hokuyo_joint" type="fixed">
       <pose>0 0 0 0 0 0</pose>
       <parent>iris::base_link</parent>
       <child>agh_lidar::link</child>
@@ -54,16 +93,13 @@
       </axis>
     </joint>
 
-    <joint name="lidar_joint" type="fixed">
-      <parent>iris::base_link</parent>
-      <child>agh_height_lidar::link</child>
-    </joint>
+
 
   <joint name="light_joint" type="fixed">
     <child>agh_light::link</child>
     <parent>iris::base_link</parent>
     <origin xyz="0 0 0" rpy="0 0 0"/>
-  </joint>
+  </joint>-->
 
   </model>
 </sdf>

@@ -19,15 +19,17 @@
 
           <attenuation>
             <range>30</range>
-            <linear>0.05</linear>
-          </attenuation>
-          <!--<diffuse>1 0 0 1</diffuse>-->
-          <specular>1 0 0 1</specular>
+            <linear>0.03</linear>
+            <quadratic>0</quadratic>
+            <constant>0</constant>
+          </attenuation>d
+          <diffuse>1 1 1 1</diffuse>
+          <specular>1 1 1 1</specular>
 
           <spot>
             <inner_angle>0</inner_angle>
-            <outer_angle>1.2</outer_angle>
-            <falloff>1</falloff>
+            <outer_angle>1.8</outer_angle>
+            <falloff>0.5</falloff>
           </spot>
 
         </light>

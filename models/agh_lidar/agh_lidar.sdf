@@ -62,7 +62,7 @@
           <plugin name="hokuyo_node" filename="libgazebo_ros_laser.so">
             <robotNamespace></robotNamespace>
             <topicName>/laser/scan</topicName>
-            <frameName>/map</frameName>
+            <frameName>/laser_frame</frameName>
           </plugin>
         </sensor>
       </link>
